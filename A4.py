@@ -114,29 +114,40 @@ class SMILEActive:
         df_feature = df.copy()
 
         # Adding columns for desired feature
+        # basic info
         df_feature["NumAtoms"] = np.nan
         df_feature["MolWt"] = np.nan
+        df_feature["HeavyAtom"] = np.nan
+        # specific features or fragment
         df_feature["AroRing"] = np.nan
         df_feature["AmideBond"] = np.nan
+        df_feature["RotatableBond"] = np.nan
+        df_feature["SaturatedRing"] = np.nan
         df_feature["AL_COO"] = np.nan
-        df_feature["HeavyAtom"] = np.nan
+        df_feature["Benzene"] = np.nan
 
         # Loop through index, calculate and adding features to the feature dataframe
         for i in df_copy.index:
             m = Chem.MolFromSmiles(df_copy['SMILES'][i])
             numatoms = m.GetNumAtoms()  # numbers of atoms
             molwt = d.CalcExactMolWt(m)  # molecule's exact molecular weight
-            aroring = d.CalcNumAromaticRings(m)  # number of aromatic rings for a molecule
+            heavyatom = l.HeavyAtomCount(m)  # Number of heavy atoms a molecule
+            aroring = d.CalcNumAromaticRings(m)  # number of aromatic rings for a molecule, they are very stable and do not break apart easily
             amidebond = d.CalcNumAmideBonds(m)  # number of amide bonds in a molecule
-            alcoo = f.fr_Al_COO(m)  #Number of aliphatic carboxylic acids
-            heavyatom = l.HeavyAtomCount(m)  #Number of heavy atoms a molecule
+            rotabond= d.CalcNumRotatableBonds(m)  # number of rotatable bonds for a molecule
+            saturatedring = d.CalcNumSaturatedRings(m)  # returns the number of saturated rings for a molecule
+            alcoo = f.fr_Al_COO(m)  # Number of aliphatic carboxylic acids
+            benzene = f.fr_benzene(m) # Number of benzene rings
 
             df_feature.loc[i, 'NumAtoms'] = numatoms
             df_feature.loc[i, 'MolWt'] = molwt
+            df_feature.loc[i, 'HeavyAtom'] = heavyatom
             df_feature.loc[i, 'AroRing'] = aroring
             df_feature.loc[i, 'AmideBond'] = amidebond
+            df_feature.loc[i, 'RotatableBond'] = rotabond
+            df_feature.loc[i, 'SaturatedRing'] = saturatedring
             df_feature.loc[i, 'AL_COO'] = alcoo
-            df_feature.loc[i, 'HeavyAtom'] = heavyatom
+            df_feature.loc[i, 'Benzene'] = benzene
 
 
         # move ACTIVE to the end of the dataframe
