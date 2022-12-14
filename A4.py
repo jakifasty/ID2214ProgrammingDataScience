@@ -4,7 +4,11 @@ import time
 
 # rklearn
 import sklearn
+from sklearn import model_selection
+from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn import metrics
 
 
 # rdkit
@@ -92,6 +96,65 @@ def apply_one_hot(df, one_hot):
     return new_df
 
 
+def auc_score(df, correctlabels):
+    df_temp = df.copy()
+    values = {}
+    auc_percolumn = 0
+    df_truepositive = pd.DataFrame(np.zeros((len(df_temp), len(df_temp.columns))), columns=df_temp.columns)
+    for i in range(len(correctlabels)):
+        df_truepositive.loc[i, correctlabels[i]] = 1
+    # print("df_truepositive: ", df_truepositive)
+
+    for column in df_temp:
+        columnseriesobj = df_temp[column]
+        columntruepositive = df_truepositive[column]
+        columnfalsepositive = columntruepositive.copy()
+        for i in range(len(columntruepositive)):
+            if columntruepositive[i] == 0:
+                columnfalsepositive[i] = 1
+            elif columntruepositive[i] == 1:
+                columnfalsepositive[i] = 0
+        df_auc_temp = pd.DataFrame({"s": columnseriesobj, "tp": columntruepositive, "fp": columnfalsepositive})
+
+        agg_functions = {'tp': 'sum', 'fp': 'sum'}
+        df_auc_temp = df_auc_temp.groupby(df_auc_temp['s']).aggregate(agg_functions)
+        df_auc_temp = df_auc_temp.sort_values(by='s', ascending=False)
+
+        # return auc_score
+        AUC = 0
+        cov_tp = 0
+        tot_tp = np.sum(columntruepositive)
+        tot_fp = np.sum(columnfalsepositive)
+
+        for idx in df_auc_temp.index:
+            if df_auc_temp["fp"][idx] == 0:
+                cov_tp += df_auc_temp["tp"][idx]
+            elif df_auc_temp["tp"][idx] == 0:
+                AUC += (cov_tp / tot_tp) * (df_auc_temp["fp"][idx] / tot_fp)
+            else:
+                AUC += (cov_tp / tot_tp) * (df_auc_temp["fp"][idx] / tot_fp) + (df_auc_temp["tp"][idx] / tot_tp) * (
+                        df_auc_temp["fp"][idx] / tot_fp) / 2
+                cov_tp += df_auc_temp["tp"][idx]
+
+        # AUC = metrics.roc_auc_score(columntruepositive, columnseriesobj)
+        values[column] = AUC
+
+    auc_score = 0
+    for i in values:
+        count = 0
+        for output in correctlabels:
+            if i == output:
+                count += 1
+        frequency = count / len(correctlabels)
+        auc_score += values[i] * frequency
+    return auc_score
+
+
+
+
+
+
+
 
 
 #Approach one:
@@ -117,7 +180,7 @@ class SMILEActive:
         # basic info
         df_feature["NumAtoms"] = np.nan
         df_feature["MolWt"] = np.nan
-        df_feature["HeavyAtom"] = np.nan
+        #df_feature["HeavyAtom"] = np.nan
         # specific features or fragment
         df_feature["AroRing"] = np.nan
         df_feature["AmideBond"] = np.nan
@@ -160,43 +223,10 @@ class SMILEActive:
         return df_feature
 
 
-    def fit(self, df, no_trees=100):
+    def preprocess(self, df):
         df_copy = df.copy()  # make a copy of the dataframe
 
-        filtered_df, self.column_filter = column_filter(df)  # apply column filter
-        df_temp, self.imputation = imputation(filtered_df)  # apply imputation
-        new_df, self.one_hot = one_hot(df_temp)  # apply one-hot encoding
 
-        training_labels = df["CLASS"].astype("category")
-        self.labels = list(training_labels.cat.categories)  # get values of class labels
-        # print(self.labels)
-
-        # here we generate the random forest. Uses no_trees and df_onehot to generate a forest of trees
-        random_forest = []  # list of trees
-        for tree in range(no_trees):
-            # generate the indices for the bootstrap sample
-            rows = [idx for idx in range(len(new_df))]  # list of row indices
-            dflength = len(new_df)  # number of instances in the bootstrap
-
-            randomsamples = np.random.choice(rows, size=dflength,
-                                             replace=True)  # generate indices of the bootstrap sample
-
-            inputlabel = new_df[
-                "CLASS"].values  # get class labels for the bootstrap sample as the values of the "CLASS" column
-            inputlabel = inputlabel[randomsamples]  # get class labels for the bootstrap sample
-
-            inputX = new_df.drop(columns=["CLASS"]).values  # get the instances for the bootstrap sample
-            inputX = inputX[randomsamples, :]  # get the instances for the bootstrap sample
-
-            # generate the tree
-            clf = DecisionTreeClassifier(max_features=int(
-                np.log2(inputX.shape[1])))  # with max_features as number of features to be evaluated in each node
-            # print(bootstrap_instances)
-            # bootstrap_instances_onehot = apply_one_hot(new_df, self.one_hot) #apply one-hot to the bootstrap instances
-            clf.fit(inputX, inputlabel)  # fit the tree to the bootstrap sample
-            random_forest.append(clf)  # add the generated tree to the forest
-
-        self.model = random_forest
 
     def predict(self, df):
         df_copy = df.copy()  # copy the dataframe to a new dataframe (as done in Assignment 1 and 2)
@@ -242,6 +272,48 @@ class SMILEActive:
         return predictions
 
 
+def split(df):
+    df_copy = df.copy()
+    y_total = df_copy["ACTIVE"].values
+    x_total = df_copy.drop(columns=["ACTIVE", "INDEX", "HeavyAtom", "SMILES"]).values
+    x_train, x_val, y_train, y_val = model_selection.train_test_split(x_total, y_total, test_size=0.2, random_state=1)
+    return x_train, x_val, y_train, y_val
+
+def split_skf(df):
+    df_copy = df.copy()
+    y_total = df_copy["ACTIVE"].values
+    x_total = df_copy.drop(columns=["ACTIVE", "INDEX", "HeavyAtom", "SMILES"]).values
+    skf = model_selection.StratifiedKFold(n_splits = 5)
+    skf.get_n_splits(x_total, y_total)
+    return skf, x_total, y_total
+
+
+def mlp(x_train, x_val,  y_train, y_val):
+    # hyper parameter list
+    max_iter = [10, 20, 30, 40]
+    hidden_layer_sizes = [(10,), (15,), (20,), (25,) ]
+    solver = ['sgd', 'adam']
+    activation = ['relu', 'identity', 'logistic', 'tanh']
+    learning_rate = ['constant', 'adaptive']
+    param_grid = {'max_iter': max_iter, 'hidden_layer_sizes': hidden_layer_sizes, 'solver': solver, 'activation': activation, 'learning_rate': learning_rate}
+    mlp = MLPClassifier()
+    clf = GridSearchCV(estimator=mlp, param_grid=param_grid,
+                       scoring='roc_auc', n_jobs=4)
+    clf.fit(x_train, y_train)
+    print("Best Score: ")
+    print(clf.best_score_)
+    print("Best Estimator: ")
+    print(clf.best_estimator_)
+    best_params = clf.best_params_
+    model = MLPClassifier(**best_params)
+    model.fit(x_train, y_train)
+    prediction = model.predict_proba(x_val)
+    auc = metrics.roc_auc_score(y_val, prediction[:, 1])
+    score = model.score(x_val, y_val)
+    print("auc:", auc)
+    print("score:", score)
+
+    return model, auc, prediction, score
 
 
 train_df = pd.read_csv("training_smiles.csv")
@@ -252,7 +324,18 @@ smile = SMILEActive()
 
 t0 = time.perf_counter()
 feature_df = smile.featureExtraction(train_df)
-print(feature_df)
-#smile.fit(feature_df)
+#print(feature_df)
+#x_train, x_val, y_train, y_val = split(feature_df)
+skf, x_total,y_total = split_skf(feature_df)
+for i, (train_index, val_index) in enumerate(skf.split(x_total, y_total)):
+    print(f"Fold {i}:")
+    x_train, x_val = x_total[train_index], x_total[val_index]
+    y_train, y_val = y_total[train_index], y_total[val_index]
+    model, auc, prediction, score = mlp(x_train, x_val, y_train, y_val)
+
+
+#model, auc, prediction, score = mlp(x_train, x_val, y_train, y_val)
+
 print("Training time: {:.2f} s.".format(time.perf_counter()-t0))
+
 
