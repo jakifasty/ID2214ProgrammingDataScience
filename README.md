@@ -4,7 +4,7 @@ Assignments and project from the subject on Data Science from KTH. Different alg
 ## Final project report (Assignment 4) - Prediction of activity of chemical compouns from a dataset using oprimized model 
 ![image](https://user-images.githubusercontent.com/44364350/209805066-23868db8-42d0-48eb-84bd-c2257cf5b477.png)
 
-###Flow model - Methodology
+### Flow model - Methodology
 ![image](https://user-images.githubusercontent.com/44364350/209805267-82cd926f-ae4f-42a2-b3b8-6d528fd1b261.png)
 
 ### Feature collection
