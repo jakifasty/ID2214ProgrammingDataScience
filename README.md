@@ -1,7 +1,7 @@
-# ID2214ProgrammingDataScience
+# ID2214 Programming for Data Science
 Assignments and project from the subject on Data Science from KTH. Different algorithms are implemented on Python, among others.
 
-## Final project report - Prediction of activity of chemical compouns from a dataset using oprimized model 
+## Final project report (Assignment 4) - Prediction of activity of chemical compouns from a dataset using oprimized model 
 ![image](https://user-images.githubusercontent.com/44364350/209805066-23868db8-42d0-48eb-84bd-c2257cf5b477.png)
 
 ###Flow model - Methodology
